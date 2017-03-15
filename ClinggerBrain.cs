@@ -11,7 +11,7 @@ namespace StarWars.Brains {
 	    }
 	    public override Color PrimaryColor {
 	        get {
-	            return new Color((float)0xF4 / 0x22, (float)0x77 / 0xA1, (float)0x33 / 0x7B, 1f);
+	            return new Color((float)0xF4 / 0xFF, (float)0x77 / 0xFF, (float)0x33 / 0xFF, 1f);
 	        }
 	    }
 	    public override SpaceshipBody.Type BodyType {
@@ -37,24 +37,24 @@ namespace StarWars.Brains {
 		// constants
 		private static float FAILURE = -1f;
 
-		public void Awake(){
-			_resetValues ();
+		protected void Awake(){
+			_ResetValues ();
 		}
 
 
-		public void Update(){
+		protected void Update(){
 			_framesToKeepTargetCounter = (_framesToKeepTargetCounter + 1) % _framesToKeepTaregt;
 			_framesToKeepShieldCounter = (int)(Mathf.Max ((float)_framesToKeepShieldCounter - 1f, 0f));
 
 			// Since barins are not re-awoken not re-enabled on revival, This replaces "Awake"
-			if (!_aliveLastFrame && spaceship.IsAlive) {
-				_resetValues ();
+			if (!_aliveLastFrame && spaceship != null && spaceship.IsAlive) {
+				_ResetValues ();
 			}
-			_aliveLastFrame = spaceship.IsAlive;
+			_aliveLastFrame = spaceship == null ? false : spaceship.IsAlive;
 		}
 
-		// Since barins are not re-awoken not re-enabled on revival, This replaces "Awake"
-		private void _resetValues(){
+		// Since barins are not re-awoken nor re-enabled on revival, This replaces "Awake"
+		private void _ResetValues(){
 			_target = null;
 			_shieldingFrom = null;
 			_framesToKeepTargetCounter = 0;
@@ -75,36 +75,39 @@ namespace StarWars.Brains {
 
 			// Defend against shots
 			foreach(Shot s in Space.Shots){
-				float timeToCollide = _estimateCollision (spaceship, Spaceship.SPEED_PER_TURN, s, Shot.SPEED_PER_TURN, 3f);
+				float timeToCollide = _EstimateCollision (spaceship, Spaceship.SPEED_PER_TURN, s, Shot.SPEED_PER_TURN, 3f);
 				if (timeToCollide != FAILURE) {
-					Action action = _raiseShieldFor(_framesToShieldShot);
+					Action action = _RaiseShieldFor(_framesToShieldShot);
 					if (action != null) {
 						_shieldingFrom = s;
 						return action;
 					}
 				}
 			}
-
+				
 			// Stop shield if shot is dead
 			if(_shieldingFrom != null && !_shieldingFrom.IsAlive && spaceship.IsShieldUp && _framesToKeepShieldCounter > 0){
 				return ShieldDown.action;
 			}
+				
 
 			// Stay on target towards collision, Keep Shield on & shoot if possible
 			if (_framesToKeepShieldCounter > 0 && _collidingWith != null) {
 				return DoNothing.action;
 			}
+
 				
         	// Find a new target.
 			if (_framesToKeepTargetCounter == 0 || _target == null || !_target.IsAlive) {
-				_target = _locateClosestShip ();
+				_target = _LocateClosestShip ();
 				_collidingWith = null;
         	}
+				
 
 			// If about to kill with shield, raise it and wait to collision
-			float timeToCollideWithTarget = _estimateCollision (spaceship, Spaceship.SPEED_PER_TURN, _target, Spaceship.SPEED_PER_TURN, 4f);
+			float timeToCollideWithTarget = _EstimateCollision (spaceship, Spaceship.SPEED_PER_TURN, _target, Spaceship.SPEED_PER_TURN, 4f);
 			if (timeToCollideWithTarget != FAILURE) {
-				Action action = _raiseShieldFor (_framesToShieldSpaceship);
+				Action action = _RaiseShieldFor (_framesToShieldSpaceship);
 				if (action != null) {
 					_collidingWith = _target;
 					return action;
@@ -122,14 +125,14 @@ namespace StarWars.Brains {
 	            if (angle <= -20) return TurnRight.action;
 	        }
 
-			return _tryToShoot (_target);
+			return _TryToShoot (_target);
     	}
 
 		/***
 		 * Locates the closest SpaceShip and returns it. 
 		 * if no such ship, returns null
 		 */
-		private Spaceship _locateClosestShip(){
+		private Spaceship _LocateClosestShip(){
 			Spaceship closest = null;
 			float minDistance = Mathf.Infinity;
 			foreach (Spaceship s in Space.Spaceships) {
@@ -148,7 +151,7 @@ namespace StarWars.Brains {
 		 * after timeToCheck, if such exists & assuming they maintain their direction and speed. 
 		 * Otherwise returns FAILURE.
 		 */
-		private float _estimateCollision(SpaceObject self, float selfSpeed, SpaceObject other, float otherSpeed, float timeToCheck=10f){
+		private float _EstimateCollision(SpaceObject self, float selfSpeed, SpaceObject other, float otherSpeed, float timeToCheck=10f){
 			if (other == null) {
 				return FAILURE;
 			}
@@ -161,8 +164,8 @@ namespace StarWars.Brains {
 			Vector2 PB0 = other.Position; // position of B at time 0
 			for(float t = 0f; t <= timeToCheck; t += 0.3f){
 				float testedTime = T0 + (float)t;
-				Vector2 PA_T = _positionAtTime (PA0, VA, T0, testedTime);
-				Vector2 PB_T = _positionAtTime (PB0, VB, T0, testedTime);
+				Vector2 PA_T = _PositionAtTime (PA0, VA, T0, testedTime);
+				Vector2 PB_T = _PositionAtTime (PB0, VB, T0, testedTime);
 
 				// If expected collision, return time of collision
 				if ((PA_T - PB_T).magnitude <= (RA + RB)) {
@@ -172,14 +175,14 @@ namespace StarWars.Brains {
 			return FAILURE;
 		}
 
-		private Vector2 _positionAtTime(Vector2 PositionAtTimeZero, Vector2 VelocityVector, float timeZero, float timeToCheck){
+		private Vector2 _PositionAtTime(Vector2 PositionAtTimeZero, Vector2 VelocityVector, float timeZero, float timeToCheck){
 			return PositionAtTimeZero + (VelocityVector * (timeToCheck - timeZero));
 		}
 
 		/**
 		 * Raise shield for given amount of frames. 
 		 */
-		private Action _raiseShieldFor(int frames){
+		private Action _RaiseShieldFor(int frames){
 			if (spaceship.CanRaiseShield && !spaceship.IsShieldUp) {
 				_framesToKeepShieldCounter = frames;
 				return ShieldUp.action;
@@ -194,12 +197,11 @@ namespace StarWars.Brains {
 		 * Shoot target if shooting is currently possible & an estimated hit is expected
 		 * otherwise does nothing.
 		 */
-		private Action _tryToShoot(Spaceship other){
+		private Action _TryToShoot(Spaceship other){
 			if (other == null) {
 				return DoNothing.action;
 			}
-			float timeOfHit = _estimateCollision (spaceship, Shot.SPEED_PER_TURN, other, Spaceship.SPEED_PER_TURN, _timeToEstimateShoot);
-			float timeToHit = timeOfHit - Time.time;
+			float timeOfHit = _EstimateCollision (spaceship, Shot.SPEED_PER_TURN, other, Spaceship.SPEED_PER_TURN, _timeToEstimateShoot);
 			if (spaceship.CanShoot && timeOfHit != FAILURE && !other.IsShieldUp) {
 				return Shoot.action;
 			} 
